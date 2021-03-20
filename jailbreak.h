@@ -13,8 +13,8 @@ struct jbc_cred
 	uintptr_t cdir;
 	uintptr_t rdir;
 	uintptr_t jdir;
-	uint64_t sonyCred;
 	uint64_t sceProcType;
+	uint64_t sonyCred;
 	uint64_t sceProcCap;
 
 
