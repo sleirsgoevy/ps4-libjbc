@@ -4,16 +4,22 @@
 
 struct jbc_cred
 {
-    uid_t uid;
-    uid_t ruid;
-    uid_t svuid;
-    gid_t rgid;
-    gid_t svgid;
-    uintptr_t prison;
-    uintptr_t cdir;
-    uintptr_t rdir;
-    uintptr_t jdir;
+	uid_t uid;
+	uid_t ruid;
+	uid_t svuid;
+	gid_t rgid;
+	gid_t svgid;
+	uintptr_t prison;
+	uintptr_t cdir;
+	uintptr_t rdir;
+	uintptr_t jdir;
+	uint64_t sonyCred;
+	uint64_t sceProcType;
+	uint64_t sceProcCap;
+
+
 };
+
 
 uintptr_t jbc_get_prison0(void);
 uintptr_t jbc_get_rootvnode(void);
