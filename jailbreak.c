@@ -69,9 +69,7 @@ int jbc_get_cred(struct jbc_cred* ans)
         || ppcopyout(&ans->rgid, 1 + &ans->svgid, ucred + 20)
         || ppcopyout(&ans->prison, 1 + &ans->prison, ucred + 0x30)
         || ppcopyout(&ans->cdir, 1 + &ans->jdir, fd + 0x10)
-        || ppcopyout(&ans->sceProcCap, 1 + &ans->sceProcCap, ucred + 104)
-        || ppcopyout(&ans->sonyCred, 1 + &ans->sonyCred, ucred + 96)
-        || ppcopyout(&ans->sceProcType, 1 + &ans->sceProcType, ucred + 88))
+        || ppcopyout(&ans->sceProcType, 1 + &ans->sceProcCap, ucred + 88))
         return -1;
 
     return 0;
@@ -89,9 +87,7 @@ int jbc_set_cred(const struct jbc_cred* ans)
         || ppcopyin(&ans->rgid, 1 + &ans->svgid, ucred + 20)
         || ppcopyin(&ans->prison, 1 + &ans->prison, ucred + 0x30)
         || ppcopyin(&ans->cdir, 1 + &ans->jdir, fd + 0x10) 
-        || ppcopyin(&ans->sceProcCap, 1 + &ans->sceProcCap, ucred + 104)
-        || ppcopyin(&ans->sonyCred, 1 + &ans->sonyCred, ucred + 96)
-        || ppcopyin(&ans->sceProcType, 1 + &ans->sceProcType, ucred + 88))
+        || ppcopyin(&ans->sceProcType, 1 + &ans->sceProcCap, ucred + 88))
         return -1;
     return 0;
 }
