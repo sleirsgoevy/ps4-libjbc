@@ -38,12 +38,12 @@ struct iovec
     size_t size;
 };
 
-SYSCALL(12, int chdir(char* path))
-SYSCALL(22, int unmount(const char* path, int flags))
-SYSCALL(136, int mkdir(const char* path, int mode))
-SYSCALL(137, int rmdir(const char* path))
-SYSCALL(326, int getcwd(char* buf, size_t sz))
-SYSCALL(378, int nmount(struct iovec* iov, unsigned int niov, int flags))
+SYSCALL(12, static int chdir(char* path))
+SYSCALL(22, static int unmount(const char* path, int flags))
+SYSCALL(136, static int mkdir(const char* path, int mode))
+SYSCALL(137, static int rmdir(const char* path))
+SYSCALL(326, static int getcwd(char* buf, size_t sz))
+SYSCALL(378, static int nmount(struct iovec* iov, unsigned int niov, int flags))
 
 #define MAX_PATH 1024
 
