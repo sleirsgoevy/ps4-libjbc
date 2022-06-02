@@ -2,6 +2,12 @@
 #include "kernelrw.h"
 #include "jailbreak.h"
 
+asm("open:\nmov $5, %rax\nmov %rcx, %r10\nsyscall\nret");
+asm("close:\nmov $6, %rax\nmov %rcx, %r10\nsyscall\nret");
+
+int open(const char*, int);
+int close(int);
+
 static uintptr_t prison0;
 static uintptr_t rootvnode;
 
@@ -58,6 +64,7 @@ static inline int ppcopyin(const void* u1, const void* u2, uintptr_t k)
 {
     return jbc_krw_memcpy(k, (uintptr_t)u1, (uintptr_t)u2-(uintptr_t)u1, KERNEL_HEAP);
 }
+
 int jbc_get_cred(struct jbc_cred* ans)
 {
     uintptr_t td = jbc_krw_get_td();
@@ -75,15 +82,14 @@ int jbc_get_cred(struct jbc_cred* ans)
     return 0;
 }
 
-int jbc_set_cred(const struct jbc_cred* ans)
+static int jbc_set_cred_internal(const struct jbc_cred* ans)
 {
     uintptr_t td = jbc_krw_get_td();
     uintptr_t proc = jbc_krw_read64(td + 8, KERNEL_HEAP);
     uintptr_t ucred = jbc_krw_read64(proc + 0x40, KERNEL_HEAP);
     uintptr_t fd = jbc_krw_read64(proc + 0x48, KERNEL_HEAP);
-        
 
-   if (ppcopyin(&ans->uid, 1 + &ans->svuid, ucred + 4)
+    if (ppcopyin(&ans->uid, 1 + &ans->svuid, ucred + 4)
         || ppcopyin(&ans->rgid, 1 + &ans->svgid, ucred + 20)
         || ppcopyin(&ans->prison, 1 + &ans->prison, ucred + 0x30)
         || ppcopyin(&ans->cdir, 1 + &ans->jdir, fd + 0x10) 
@@ -112,3 +118,103 @@ int jbc_jailbreak_cred(struct jbc_cred* ans)
     return 0;
 }
 
+static int jbc_open_this(const struct jbc_cred* cred0, uintptr_t vnode)
+{
+    if(!vnode)
+        return -1;
+    struct jbc_cred cred = *cred0;
+    jbc_jailbreak_cred(&cred);
+    cred.cdir = cred.rdir = cred.jdir = vnode;
+    jbc_set_cred_internal(&cred);
+    int ans = open("/", 0);
+    jbc_set_cred_internal(cred0);
+    return ans;
+}
+
+static int swap64(uintptr_t p1, KmemKind k1, uintptr_t p2, KmemKind k2)
+{
+    uintptr_t v1 = jbc_krw_read64(p1, k1);
+    uintptr_t v2 = jbc_krw_read64(p2, k2);
+    if(ppcopyin(&v2, 1+&v2, p1)
+    || ppcopyin(&v1, 1+&v1, p2))
+        return -1;
+    return 0;
+}
+
+static int return0(void)
+{
+    return 0;
+}
+
+static void* fake_vtable[16] = {
+    return0, return0, return0, return0,
+    return0, return0, return0, return0,
+    return0, return0, return0, return0,
+    return0, return0, return0, return0,
+};
+
+int jbc_set_cred(const struct jbc_cred* newp)
+{
+    struct jbc_cred old, neww = *newp;
+    if(jbc_get_cred(&old))
+        return -1;
+    if(old.cdir && !neww.cdir)
+        neww.cdir = jbc_get_rootvnode();
+    if(old.rdir && !neww.rdir)
+        neww.rdir = jbc_get_rootvnode();
+    if(old.jdir && !neww.jdir)
+        neww.jdir = jbc_get_rootvnode();
+    int cdir_fd = jbc_open_this(&old, neww.cdir);
+    int rdir_fd = jbc_open_this(&old, neww.rdir);
+    int jdir_fd = jbc_open_this(&old, neww.jdir);
+    struct jbc_cred elevated = neww;
+    elevated.cdir = old.cdir;
+    elevated.jdir = old.jdir;
+    elevated.rdir = old.rdir;
+    //this offset is the same in 5.05-9.60, probably safe to use
+    uint32_t rc;
+    if(elevated.prison)
+    {
+        if(jbc_krw_memcpy((uintptr_t)&rc, elevated.prison+0x14, sizeof(rc), KERNEL_HEAP)
+        && jbc_krw_memcpy((uintptr_t)&rc, elevated.prison+0x14, sizeof(rc), KERNEL_TEXT))
+            return -1;
+        rc++;
+        if(jbc_krw_memcpy(elevated.prison+0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_HEAP)
+        && jbc_krw_memcpy((uintptr_t)&rc, elevated.prison+0x14, sizeof(rc), KERNEL_TEXT))
+            return -1;
+    }
+    if(jbc_set_cred_internal(&elevated))
+        return -1;
+    if(old.prison)
+    {
+        if(jbc_krw_memcpy((uintptr_t)&rc, old.prison+0x14, sizeof(rc), KERNEL_HEAP)
+        && jbc_krw_memcpy((uintptr_t)&rc, old.prison+0x14, sizeof(rc), KERNEL_TEXT))
+            return -1;
+        rc--;
+        if(jbc_krw_memcpy(old.prison+0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_HEAP)
+        && jbc_krw_memcpy(old.prison+0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_TEXT))
+            return -1;
+    }
+    uintptr_t td = jbc_krw_get_td();
+    uintptr_t proc = jbc_krw_read64(td + 8, KERNEL_HEAP);
+    uintptr_t ucred = jbc_krw_read64(proc + 0x40, KERNEL_HEAP);
+    uintptr_t fd = jbc_krw_read64(proc + 0x48, KERNEL_HEAP);
+    uintptr_t ofiles = jbc_krw_read64(fd, KERNEL_HEAP);
+    int fds[3] = {cdir_fd, rdir_fd, jdir_fd};
+    for(int i = 0; i < 3; i++)
+    {
+        if(fds[i] < 0)
+            continue;
+        uintptr_t file = jbc_krw_read64(ofiles+8*fds[i], KERNEL_HEAP);
+        if(swap64(file, KERNEL_HEAP, fd+0x10+8*i, KERNEL_HEAP))
+            return -1;
+        if(jbc_krw_read64(file, KERNEL_HEAP) == 0)
+        {
+            uintptr_t p = (uintptr_t)fake_vtable;
+            if(ppcopyin(&p, 1+&p, file+8))
+                return -1;
+        }
+        close(fds[i]);
+    }
+    return 0;
+}
