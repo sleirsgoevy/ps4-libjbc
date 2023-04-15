@@ -146,12 +146,7 @@ static int return0(void)
     return 0;
 }
 
-static void* fake_vtable[16] = {
-    return0, return0, return0, return0,
-    return0, return0, return0, return0,
-    return0, return0, return0, return0,
-    return0, return0, return0, return0,
-};
+static void* fake_vtable[16] = {};
 
 int jbc_set_cred(const struct jbc_cred* newp)
 {
@@ -180,7 +175,7 @@ int jbc_set_cred(const struct jbc_cred* newp)
             return -1;
         rc++;
         if(jbc_krw_memcpy(elevated.prison+0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_HEAP)
-        && jbc_krw_memcpy((uintptr_t)&rc, elevated.prison+0x14, sizeof(rc), KERNEL_TEXT))
+        && jbc_krw_memcpy(elevated.prison+0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_TEXT))
             return -1;
     }
     if(jbc_set_cred_internal(&elevated))
@@ -210,6 +205,9 @@ int jbc_set_cred(const struct jbc_cred* newp)
             return -1;
         if(jbc_krw_read64(file, KERNEL_HEAP) == 0)
         {
+            if(!fake_vtable[0])
+                for(int i = 0; i < sizeof(fake_vtable) / sizeof(fake_vtable[0]); i++)
+                    fake_vtable[i] = return0;
             uintptr_t p = (uintptr_t)fake_vtable;
             if(ppcopyin(&p, 1+&p, file+8))
                 return -1;
